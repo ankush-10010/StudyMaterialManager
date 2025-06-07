@@ -2,8 +2,6 @@
 
 A modern, feature-rich desktop application for organizing and managing study materials with an elegant dark-themed UI.
 
-![Study Material Manager](C:\CODE\Python\StudyMaterialManager\screenshot.jpg) *(Note: Add a screenshot of your application)*
-
 ## Features
 
 - 📚 **Material Management**
