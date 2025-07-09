@@ -45,7 +45,14 @@ A modern, feature-rich desktop application for organizing and managing study mat
    pip install -r requirements.txt
    ```
 
-3. Run the application:
+3. **Set up Google Drive Integration (Optional):**
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/).
+   - Create a new project.
+   - Enable the **Google Drive API** for your project.
+   - Create credentials for a **Desktop app**.
+   - Download the credentials as `credentials.json` and place it in the root directory of the application.
+
+4. Run the application:
    ```bash
    python StudyMaterialManager.py
    ```
@@ -55,13 +62,11 @@ A modern, feature-rich desktop application for organizing and managing study mat
 - Python 3.7+
 - customtkinter
 - tkinterdnd2
+- google-api-python-client
+- google-auth-httplib2
+- google-auth-oauthlib
 - SQLite3 (included with Python)
 
-Create a `requirements.txt` file with:
-```
-customtkinter>=5.1.2
-tkinterdnd2>=0.3.0
-```
 
 ## Usage
 
