@@ -7,6 +7,9 @@ from datetime import datetime
 from tkinter import filedialog, messagebox
 from typing import List, Tuple, Optional
 from tkinterdnd2 import TkinterDnD, DND_FILES
+from drive_service import DriveService
+import threading
+from pathlib import Path
 
 # === Theme Setup ===
 ctk.set_appearance_mode("dark")
@@ -108,6 +111,22 @@ class DatabaseManager:
 
 # Initialize database
 db = DatabaseManager()
+drive_service: Optional[DriveService] = None
+
+def connect_to_drive():
+    def auth_flow():
+        global drive_service
+        try:
+            drive_service = DriveService()
+            status_var.set("Google Drive connected successfully.")
+            drive_button.configure(text="Drive Connected", fg_color=COLORS["success"], hover_color=COLORS["success_hover"])
+        except Exception as e:
+            messagebox.showerror("Google Drive Error", f"Failed to connect to Google Drive: {e}")
+            status_var.set("Google Drive connection failed.")
+            drive_button.configure(text="Connect to Drive", fg_color=COLORS["info"], hover_color=COLORS["info_hover"])
+
+    status_var.set("Connecting to Google Drive...")
+    threading.Thread(target=auth_flow, daemon=True).start()
 
 # === Functions ===
 def add_material(material_id: int = None):
@@ -126,6 +145,12 @@ def add_material(material_id: int = None):
             return
             
         try:
+            if drive_service and file_path and os.path.exists(file_path):
+                status_var.set(f"Uploading {os.path.basename(file_path)} to Google Drive...")
+                file_id = drive_service.upload_file(file_path, os.path.basename(file_path))
+                file_path = file_id
+                status_var.set("File uploaded successfully.")
+
             if is_edit:
                 db.update_material(material_id, title, content, tags, file_path)
                 messagebox.showinfo("Success", "Material updated successfully!", parent=top)
@@ -142,7 +167,7 @@ def add_material(material_id: int = None):
         filepath = filedialog.askopenfilename(
             title="Select File",
             filetypes=[
-                ("All Files", "*.*"),
+                ("All Files", "*.* "),
                 ("PDFs", "*.pdf"),
                 ("Documents", "*.docx *.txt"),
                 ("Images", "*.png *.jpg *.jpeg"),
@@ -461,7 +486,15 @@ def view_material():
             text_color=COLORS["text_primary"]
         ).pack(anchor="w", padx=15, pady=(15, 5))
         
-        file_name = os.path.basename(material[4])
+        file_name = "Loading..."
+        if drive_service:
+            try:
+                file_name = drive_service.get_file_name(material[4])
+            except Exception as e:
+                file_name = "Error loading file name"
+        else:
+            file_name = os.path.basename(material[4])
+
         file_btn = ctk.CTkButton(
             file_frame,
             text=f"📄 {file_name}",
@@ -475,15 +508,7 @@ def view_material():
         )
         file_btn.pack(fill="x", padx=15, pady=(0, 5))
         
-        if os.path.exists(material[4]):
-            file_size = f"{os.path.getsize(material[4]) / 1024:.1f} KB"
-            ctk.CTkLabel(
-                file_frame, 
-                text=f"Size: {file_size}",
-                font=root.small_font,
-                text_color=COLORS["text_secondary"]
-            ).pack(anchor="w", padx=15, pady=(0, 15))
-        else:
+        if not drive_service and not os.path.exists(material[4]):
             ctk.CTkLabel(
                 file_frame, 
                 text="⚠️ File not found at specified path", 
@@ -543,16 +568,37 @@ def open_attachment(file_path: str = None):
     if not file_path:
         messagebox.showwarning("No Attachment", "This material has no file attachment.", parent=root)
         return
-        
+
+    # Check if it's a local file path first
     if os.path.exists(file_path):
         try:
             webbrowser.open(file_path)
+            return
         except Exception as e:
             messagebox.showerror("Error", f"Could not open file: {str(e)}", parent=root)
+            return
+
+    if drive_service:
+        try:
+            temp_dir = Path.home() / "StudyMaterialManager_Downloads"
+            temp_dir.mkdir(exist_ok=True)
+            file_name = drive_service.get_file_name(file_path)
+            destination_path = temp_dir / file_name
+
+            if destination_path.exists():
+                webbrowser.open(str(destination_path))
+            else:
+                status_var.set(f"Downloading file from Google Drive...")
+                drive_service.download_file(file_path, str(destination_path))
+                webbrowser.open(str(destination_path))
+                status_var.set("File downloaded and opened successfully.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not open file from Google Drive: {str(e)}", parent=root)
+            status_var.set("Error opening file from Google Drive.")
     else:
         messagebox.showwarning("File Not Found", 
                              f"The file was not found at:\n{file_path}\n\n"
-                             "It may have been moved or deleted.", 
+                             "It may have been moved or deleted, or Google Drive is not connected.", 
                              parent=root)
 
 def confirm_delete(material_id: int, parent_window=None):
@@ -713,6 +759,19 @@ for i, (text, command, color, hover_color) in enumerate(button_configs):
         corner_radius=8,
         font=root.text_font
     ).grid(row=0, column=i, padx=8, pady=8)
+
+drive_button = ctk.CTkButton(
+    btn_frame,
+    text="Connect to Drive",
+    command=connect_to_drive,
+    fg_color=COLORS["info"],
+    hover_color=COLORS["info_hover"],
+    width=150,
+    height=35,
+    corner_radius=8,
+    font=root.text_font
+)
+drive_button.grid(row=0, column=len(button_configs), padx=8, pady=8)
 
 # Status bar
 status_frame = ctk.CTkFrame(root, height=40, fg_color=COLORS["bg_light"], corner_radius=10)
